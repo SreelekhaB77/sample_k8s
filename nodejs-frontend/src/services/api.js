@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE = "http://localhost:5000"; // Flask backend
+const API_BASE = "/api"; // relative path, will be handled by NGINX
 
 export const getMessage = async () => {
   try {

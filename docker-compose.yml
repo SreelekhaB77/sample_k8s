@@ -1,20 +1,16 @@
-version: '3.8'
+version: "3.8"
 
 services:
   frontend:
-    build: ./node-app
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
+    build: ./nodejs-frontend
+    container_name: nodejs-frontend
     networks:
       - app-network
     restart: always
 
   backend:
-    build: ./flask-app
-    ports:
-      - "5000:5000"
+    build: ./flask-backend
+    container_name: flask-backend
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/app_db
     depends_on:
@@ -25,7 +21,8 @@ services:
     restart: always
 
   db:
-    image: postgres:14-alpine   # using official image (simpler & stable)
+    image: postgres:14-alpine   # official lightweight Postgres image
+    container_name: postgres-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -42,9 +39,24 @@ services:
       timeout: 5s
       retries: 5
 
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app-network
+    restart: always
+
 volumes:
   db_data:
 
 networks:
   app-network:
     driver: bridge
+
