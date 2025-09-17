@@ -7,11 +7,11 @@ main = Blueprint("main", __name__)
 def ping():
     return jsonify({"status": "ok"})
 
-@main.route("/api/message", methods=["GET"])
+@main.route("/message", methods=["GET"])
 def message():
     return jsonify({"message": "Hello from Flask Backend!"})
 
-@main.route("/api/users", methods=["GET"])
+@main.route("/users", methods=["GET"])
 def get_users():
     try:
         users = User.query.all()
