@@ -26,7 +26,7 @@ jobs:
       - name: Install & Test (Node)
         working-directory: ./nodejs-frontend
         run: |
-          npm ci
+          npm install
           npm test
 
   # 2️⃣ Run Flask Tests
@@ -121,8 +121,17 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=yes ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
           cd /home/ubuntu/app
+
+          # Set latest image tags in .env
           echo "NODE_IMAGE=${{ env.NODE_IMAGE }}" > .env
           echo "FLASK_IMAGE=${{ env.FLASK_IMAGE }}" >> .env
+
+          # Stop and remove old containers (and optionally volumes)
+          docker-compose down -v
+
+          # Pull latest images
           docker-compose pull
+
+          # Start containers fresh
           docker-compose up -d --remove-orphans
           EOF
