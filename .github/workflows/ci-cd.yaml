@@ -132,6 +132,8 @@ jobs:
           # Pull latest images
           docker-compose pull
 
+          docker-compose run --rm flask-backend flask db upgrade   # runs migrations
+
           # Start containers fresh
           docker-compose up -d --remove-orphans
           EOF
