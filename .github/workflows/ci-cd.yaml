@@ -120,7 +120,7 @@ jobs:
       - name: Deploy to remote server (docker-compose)
         run: |
           ssh -o StrictHostKeyChecking=yes ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-          cd /home/ubuntu/app
+          cd /home/ubuntu/sample_k8s
 
           # Set latest image tags in .env
           echo "NODE_IMAGE=${{ env.NODE_IMAGE }}" > .env
