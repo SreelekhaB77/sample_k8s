@@ -7,6 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
+  # 1️⃣ Run Node.js Tests
   test-node:
     runs-on: ubuntu-latest
     steps:
@@ -19,15 +20,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/node-app/package-lock.json') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('**/nodejs-frontend/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
       - name: Install & Test (Node)
-        working-directory: ./node-app
+        working-directory: ./nodejs-frontend
         run: |
           npm ci
           npm test
 
+  # 2️⃣ Run Flask Tests
   test-flask:
     runs-on: ubuntu-latest
     needs: test-node
@@ -41,7 +43,10 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Setup Python
@@ -52,20 +57,19 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/flask-app/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/flask-backend/requirements.txt') }}
       - name: Install deps
-        working-directory: ./flask-app
+        working-directory: ./flask-backend
         run: |
           pip install -r requirements.txt
       - name: Run migrations & tests (Flask)
-        working-directory: ./flask-app
+        working-directory: ./flask-backend
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
-          # run migrations if you use them (optional)
-          # flask db upgrade || true
           pytest -q
 
+  # 3️⃣ Build & Push Docker Images
   build-and-push:
     runs-on: ubuntu-latest
     needs: [test-node, test-flask]
@@ -75,28 +79,29 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build & push node-app image
+      - name: Build & push nodejs-frontend image
         uses: docker/build-push-action@v4
         with:
-          context: ./node-app
+          context: ./nodejs-frontend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/node-app:${{ github.sha }}
+          tags: ${{ secrets.DOCKER_USERNAME }}/nodejs-frontend:${{ github.sha }}
 
-      - name: Build & push flask-app image
+      - name: Build & push flask-backend image
         uses: docker/build-push-action@v4
         with:
-          context: ./flask-app
+          context: ./flask-backend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/flask-app:${{ github.sha }}
+          tags: ${{ secrets.DOCKER_USERNAME }}/flask-backend:${{ github.sha }}
 
       - name: Export image tags
         run: |
-          echo "NODE_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/node-app:${{ github.sha }}" >> $GITHUB_ENV
-          echo "FLASK_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/flask-app:${{ github.sha }}" >> $GITHUB_ENV
+          echo "NODE_IMAGE=${{ secrets.DOCKER_USERNAME }}/nodejs-frontend:${{ github.sha }}" >> $GITHUB_ENV
+          echo "FLASK_IMAGE=${{ secrets.DOCKER_USERNAME }}/flask-backend:${{ github.sha }}" >> $GITHUB_ENV
 
+  # 4️⃣ Deploy to EC2
   deploy-ec2:
     runs-on: ubuntu-latest
     needs: build-and-push
@@ -105,20 +110,19 @@ jobs:
       - name: Start ssh-agent and add key
         uses: webfactory/ssh-agent@v0.5.4
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
       - name: Add remote to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
       - name: Deploy to remote server (docker-compose)
         run: |
-          ssh -o StrictHostKeyChecking=yes ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-          cd /home/ubuntu/app               # path on remote where docker-compose.yml lives
-          # update images in docker-compose.yml or use image tags in env
+          ssh -o StrictHostKeyChecking=yes ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          cd /home/ubuntu/app
+          echo "NODE_IMAGE=${{ env.NODE_IMAGE }}" > .env
+          echo "FLASK_IMAGE=${{ env.FLASK_IMAGE }}" >> .env
           docker-compose pull
           docker-compose up -d --remove-orphans
           EOF
-
-  
