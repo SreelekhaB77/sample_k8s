@@ -4,6 +4,8 @@ services:
   frontend:
     build: ./nodejs-frontend
     container_name: nodejs-frontend
+    expose:
+      - "3000"   # expose internal port for NGINX
     networks:
       - app-network
     restart: always
@@ -12,16 +14,16 @@ services:
     build: ./flask-backend
     container_name: flask-backend
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/app_db
+      DATABASE_URL: postgresql://postgres:postgres@postgres-db:5432/app_db
     depends_on:
-      db:
+      postgres-db:
         condition: service_healthy
     networks:
       - app-network
     restart: always
 
-  db:
-    image: postgres:14-alpine   # official lightweight Postgres image
+  postgres-db:
+    image: postgres:14-alpine
     container_name: postgres-db
     environment:
       POSTGRES_USER: postgres
@@ -59,4 +61,3 @@ volumes:
 networks:
   app-network:
     driver: bridge
-
