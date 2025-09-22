@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodejs-frontend
+  namespace: sample-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nodejs-frontend
+  template:
+    metadata:
+      labels:
+        app: nodejs-frontend
+    spec:
+      containers:
+        - name: nodejs-frontend
+          image: lekha5/nodejs-frontend:latest
+          env:
+            - name: API_URL
+              value: http://flask-backend.sample-app.svc.cluster.local:5000
+          ports:
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodejs-frontend
+  namespace: sample-app
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 3000
+  selector:
+    app: nodejs-frontend
